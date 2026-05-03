@@ -150,6 +150,12 @@ Each row is a **target adapter** — one plugin in `packages/targets/*`. Status 
 | `pkg-cdn` | jsDelivr / unpkg / esm.sh / cdnjs / Skypack / JSPM | ✅ |
 | `pkg-docker` | Docker Hub / GHCR / Quay / ECR / GCR / ACR | ✅ |
 
+### Native compile / QA
+| Target id | Channel | Status |
+|---|---|---|
+| `pkg-perry` | [Perry](https://www.perryts.com/en/) — TS → native compile + publish (App Store / Play Store / direct) | 🚧 |
+| `qa-geisterhand` | [Geisterhand](https://geisterhand.io/) — UI test/automation harness | 🚧 |
+
 ### App hosting
 | Target id | Channel | Status |
 |---|---|---|
