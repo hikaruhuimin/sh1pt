@@ -1154,6 +1154,18 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/targets/payment-paypal:
+    dependencies:
+      '@profullstack/sh1pt-core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/targets/payment-stripe:
+    dependencies:
+      '@profullstack/sh1pt-core':
+        specifier: workspace:*
+        version: link:../../core
+
   packages/targets/pkg-apt:
     dependencies:
       '@profullstack/sh1pt-core':

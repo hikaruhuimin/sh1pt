@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/sh1pt-target-payment-stripe",
-  "version": "0.1.11",
+  "version": "0.1.14",
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
@@ -17,7 +17,9 @@
     "url": "git+https://github.com/profullstack/sh1pt.git",
     "directory": "packages/targets/payment-stripe"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public",
     "main": "./dist/index.js",
@@ -28,5 +30,7 @@
         "import": "./dist/index.js"
       }
     }
-  }
+  },
+  "homepage": "https://sh1pt.com",
+  "bugs": "https://github.com/profullstack/sh1pt/issues"
 }
