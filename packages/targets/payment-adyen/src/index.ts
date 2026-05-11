@@ -1,99 +1,99 @@
-import { defineTarget, exec } from '@profullstack/sh1pt-core';
+import { defineTarget, setupGuide } from '@profullstack/sh1pt-core';
 
 interface Config {
   command?: 'payment' | 'capture' | 'refund' | 'cancel' | 'status';
   args?: Record<string, unknown>;
 }
 
+interface AdyenError {
+  errorCode?: string;
+  message?: string;
+}
+
 export default defineTarget<Config>({
   id: 'payment-adyen',
   kind: 'payment',
-  label: 'Adyen (CLI wrapper)',
+  label: 'Adyen',
 
   async build(ctx, config) {
-    ctx.log('adyen: verifying API access');
     const cmd = config.command || 'status';
-
     const key = ctx.secret('ADYEN_API_KEY');
     const merchant = ctx.secret('ADYEN_MERCHANT_ACCOUNT');
     if (!key) throw new Error('ADYEN_API_KEY not set');
     if (!merchant) throw new Error('ADYEN_MERCHANT_ACCOUNT not set');
-
     const base = 'https://checkout-test.adyen.com/v71';
+
+    async function adyen(path: string, init?: RequestInit) {
+      const res = await fetch(`${base}${path}`, {
+        ...init,
+        headers: {
+          'X-API-Key': key,
+          'Content-Type': 'application/json',
+          ...init?.headers,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = data as AdyenError;
+        throw new Error(err.message || `Adyen API error: ${res.status}`);
+      }
+      return data;
+    }
 
     switch (cmd) {
       case 'payment': {
-        const amount = config.args?.amount || 0;
-        const currency = config.args?.currency || 'USD';
+        const amount = config.args?.amount as number || 0;
+        const currency = config.args?.currency as string || 'USD';
         const ref = `sh1pt-${Date.now()}`;
         ctx.log(`adyen: creating payment of ${amount} ${currency}`);
-        const r = await exec('curl', [
-          '-s', '-X', 'POST',
-          `${base}/payments`,
-          '-H', `X-API-Key: ${key}`,
-          '-H', 'Content-Type: application/json',
-          '-d', JSON.stringify({
+        const data = await adyen('/payments', {
+          method: 'POST',
+          body: JSON.stringify({
             amount: { value: amount, currency },
             reference: ref,
             merchantAccount: merchant,
             channel: 'web',
             returnUrl: 'https://sh1pt.com/adyen/redirect',
-          })
-        ], { log: ctx.log });
-        return { output: r.stdout };
+          }),
+        });
+        return { output: JSON.stringify(data) };
       }
       case 'capture': {
         const psp = config.args?.pspReference as string || '';
-        const amount = config.args?.amount;
-        ctx.log(`adyen: capturing payment ${psp}`);
-        const r = await exec('curl', [
-          '-s', '-X', 'POST',
-          `${base}/payments/${psp}/captures`,
-          '-H', `X-API-Key: ${key}`,
-          '-H', 'Content-Type: application/json',
-          '-d', JSON.stringify({
+        ctx.log(`adyen: capturing ${psp}`);
+        const data = await adyen(`/payments/${psp}/captures`, {
+          method: 'POST',
+          body: JSON.stringify({
             merchantAccount: merchant,
-            amount: amount ? { value: amount, currency: config.args?.currency || 'USD' } : undefined,
-          })
-        ], { log: ctx.log });
-        return { output: r.stdout };
+            amount: config.args?.amount ? { value: config.args.amount as number, currency: (config.args?.currency as string) || 'USD' } : undefined,
+          }),
+        });
+        return { output: JSON.stringify(data) };
       }
       case 'refund': {
         const psp = config.args?.pspReference as string || '';
-        ctx.log(`adyen: refunding payment ${psp}`);
-        const r = await exec('curl', [
-          '-s', '-X', 'POST',
-          `${base}/payments/${psp}/refunds`,
-          '-H', `X-API-Key: ${key}`,
-          '-H', 'Content-Type: application/json',
-          '-d', JSON.stringify({
-            merchantAccount: merchant,
-            amount: config.args?.amount,
-          })
-        ], { log: ctx.log });
-        return { output: r.stdout };
+        ctx.log(`adyen: refunding ${psp}`);
+        const data = await adyen(`/payments/${psp}/refunds`, {
+          method: 'POST',
+          body: JSON.stringify({ merchantAccount: merchant, amount: config.args?.amount }),
+        });
+        return { output: JSON.stringify(data) };
       }
       case 'cancel': {
         const psp = config.args?.pspReference as string || '';
-        ctx.log(`adyen: canceling payment ${psp}`);
-        const r = await exec('curl', [
-          '-s', '-X', 'POST',
-          `${base}/payments/${psp}/cancels`,
-          '-H', `X-API-Key: ${key}`,
-          '-H', 'Content-Type: application/json',
-          '-d', JSON.stringify({ merchantAccount: merchant })
-        ], { log: ctx.log });
-        return { output: r.stdout };
+        ctx.log(`adyen: canceling ${psp}`);
+        const data = await adyen(`/payments/${psp}/cancels`, {
+          method: 'POST',
+          body: JSON.stringify({ merchantAccount: merchant }),
+        });
+        return { output: JSON.stringify(data) };
       }
       case 'status': {
         const psp = config.args?.pspReference as string || '';
         ctx.log(`adyen: checking status of ${psp || 'all'}`);
-        const endpoint = psp ? `${base}/payments/${psp}` : `${base}/payments`;
-        const r = await exec('curl', [
-          '-s', endpoint,
-          '-H', `X-API-Key: ${key}`
-        ], { log: ctx.log });
-        return { output: r.stdout };
+        const endpoint = psp ? `/payments/${psp}` : '/payments';
+        const data = await adyen(endpoint);
+        return { output: JSON.stringify(data) };
       }
       default:
         throw new Error(`Unknown command: ${cmd}`);
@@ -102,17 +102,14 @@ export default defineTarget<Config>({
 
   async ship(ctx, _config) {
     ctx.log('adyen: verifying setup');
-    const key = ctx.secret('ADYEN_API_KEY');
-    if (!key || !ctx.secret('ADYEN_MERCHANT_ACCOUNT')) {
-      const { setupGuide } = await import('@profullstack/sh1pt-core');
+    if (!ctx.secret('ADYEN_API_KEY') || !ctx.secret('ADYEN_MERCHANT_ACCOUNT')) {
       return setupGuide({
         title: 'Adyen API Key & Merchant Account',
         steps: [
           '1. Go to https://ca-test.adyen.com (test) or https://ca-live.adyen.com (live)',
           '2. Settings → API credentials → Generate API key',
-          '3. Copy your Merchant Account name from Settings → General',
-          '4. Run: sh1pt secret set ADYEN_API_KEY <key>',
-          '5. Run: sh1pt secret set ADYEN_MERCHANT_ACCOUNT <account>',
+          '3. Run: sh1pt secret set ADYEN_API_KEY <key>',
+          '4. Run: sh1pt secret set ADYEN_MERCHANT_ACCOUNT <account>',
         ],
       });
     }
