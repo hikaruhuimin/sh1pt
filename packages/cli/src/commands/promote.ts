@@ -297,11 +297,25 @@ socialCmd
 // prompt. Distinct from `agents/` (which wraps installed CLI binaries
 // like `claude` / `codex`); this is HTTP-API-based content generation
 // keyed off provider API keys held in the vault.
-const AI_PLATFORMS = ['claude', 'openai', 'qwen', 'gemini'];
+const AI_PLATFORMS = [
+  // Real integrations
+  'claude', 'openai', 'qwen', 'gemini',
+  // BYOK stubs (OpenRouter-compatible providers — implementations land
+  // case-by-case; setup() collects the API key into the vault today)
+  'ai21', 'aionlabs', 'akashml', 'alibaba-cloud', 'amazon-bedrock', 'arcee',
+  'atlascloud', 'azure', 'baidu', 'baseten', 'cerebras', 'chutes', 'clarifai',
+  'cloudflare', 'cohere', 'deepinfra', 'deepseek', 'featherless', 'fireworks',
+  'friendli', 'gmicloud', 'google-vertex', 'groq', 'inception', 'inceptron',
+  'infermatic', 'inflection', 'ionet', 'kimi', 'liquid', 'mancer', 'minimax',
+  'mistral', 'moonshot', 'morph', 'nebius', 'nextbit', 'novita',
+  'openinference', 'parasail', 'perceptron', 'perplexity', 'phala', 'reka',
+  'relace', 'sambanova', 'siliconflow', 'stepfun', 'switchpoint', 'together',
+  'venice', 'wandb', 'xai', 'xiaomi', 'zai',
+];
 
 const aiCmd = promoteCmd
   .command('ai')
-  .description('Configure AI providers (Claude, OpenAI, Qwen, Gemini) used to draft ad copy and post bodies');
+  .description('Configure AI providers (Claude, OpenAI, Qwen, Gemini + 50+ BYOK stubs) used to draft ad copy and post bodies');
 
 aiCmd
   .command('setup')
