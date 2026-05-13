@@ -24,7 +24,7 @@ export default defineDns<Config>({
   async connect(ctx) {
     _secret = (k) => ctx.secret(k);
     if (!ctx.secret('AWS_ACCESS_KEY_ID') || !ctx.secret('AWS_SECRET_ACCESS_KEY')) {
-      throw new Error('AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set');
+      throw new Error('AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set — run `sh1pt secret set AWS_ACCESS_KEY_ID ...` (required)');
     }
     return { accountId: 'route53' };
   },

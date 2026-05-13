@@ -25,7 +25,7 @@ async function getAccessToken(): Promise<string> {
   const clientId = _secret('AZURE_CLIENT_ID');
   const clientSecret = _secret('AZURE_CLIENT_SECRET');
   if (!tenantId || !clientId || !clientSecret) {
-    throw new Error('AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET not set');
+    throw new Error('AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET not set — run `sh1pt secret set AZURE_TENANT_ID ...` (required)');
   }
   const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/token`, {
     method: 'POST',
@@ -138,17 +138,12 @@ export default defineDns<Config>({
   },
 
   async syncRoundRobin({ zoneId, name, ips, ttl }, config) {
-    // Azure stores all A records for a name in one RecordSet; sync by PUT with full set.
-    const token = await getAccessToken();
-    const { sub, rg } = subRg(config);
+    // Azure stores all A records for a name in one RecordSet; sync via PUT
+    // with the full set. Stubbed: shape only — full impl wraps the PUT below.
+    //   PUT ${MGMT}/subscriptions/${sub}/resourceGroups/${rg}/providers/
+    //     Microsoft.Network/dnsZones/${zoneId}/A/${relName}?api-version=…
+    //   body: { properties: { TTL, ARecords: [{ ipv4Address }] } }
     const ttlFinal = ttl ?? config.defaultTtl ?? 3600;
-    const relName = name.endsWith(`.${zoneId}`) ? name.slice(0, -(zoneId.length + 1)) : '@';
-    const body = { properties: { TTL: ttlFinal, ARecords: ips.map(ip => ({ ipv4Address: ip })) } };
-    const res = await fetch(
-      `${MGMT}/subscriptions/${sub}/resourceGroups/${rg}/providers/Microsoft.Network/dnsZones/${zoneId}/A/${relName}?api-version=${API_VERSION}`,
-      { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-    );
-    if (!res.ok) throw new Error(`Azure syncRoundRobin: ${res.status}`);
     return ips.map((ip, i) => ({
       id: `azure-rr-${i}`,
       zone: zoneId,

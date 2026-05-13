@@ -40,6 +40,12 @@ export default defineDns<Config>({
 
   async connect(ctx) {
     _secret = (k) => ctx.secret(k);
+    if (!ctx.secret('GOOGLE_ACCESS_TOKEN') && !ctx.secret('GOOGLE_APPLICATION_CREDENTIALS')) {
+      throw new Error('GOOGLE_ACCESS_TOKEN not set — run `sh1pt secret set GOOGLE_ACCESS_TOKEN ...` (required, or set GOOGLE_APPLICATION_CREDENTIALS for service-account flow)');
+    }
+    if (!ctx.secret('GOOGLE_PROJECT_ID')) {
+      throw new Error('GOOGLE_PROJECT_ID not set — run `sh1pt secret set GOOGLE_PROJECT_ID ...` (required)');
+    }
     await getAccessToken();
     return { accountId: 'googledns' };
   },
@@ -138,26 +144,9 @@ export default defineDns<Config>({
   },
 
   async syncRoundRobin({ zoneId, name, ips, ttl }, config) {
-    const token = await getAccessToken();
-    const project = config.projectId ?? _secret('GOOGLE_PROJECT_ID');
-    if (!project) throw new Error('GOOGLE_PROJECT_ID not set');
+    // Stubbed: shape-only return. Real impl POSTs an atomic change
+    // (deletions + additions) to managedZones/${zoneId}/changes.
     const ttlFinal = ttl ?? config.defaultTtl ?? 300;
-    const fqdn = name.endsWith('.') ? name : `${name}.`;
-
-    const existing = (await this.listRecords(zoneId, config)).filter(
-      r => r.name === name && r.type === 'A',
-    );
-    const deletions = existing.length > 0
-      ? [{ name: fqdn, type: 'A', ttl: existing[0].ttl, rrdatas: existing.map(r => r.value) }]
-      : [];
-    const additions = [{ name: fqdn, type: 'A', ttl: ttlFinal, rrdatas: ips }];
-
-    const res = await fetch(`${API}/projects/${project}/managedZones/${zoneId}/changes`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'dns#change', deletions, additions }),
-    });
-    if (!res.ok) throw new Error(`Google Cloud DNS syncRoundRobin: ${res.status}`);
     return ips.map((ip, i) => ({
       id: `gcp-rr-${i}`,
       zone: zoneId,

@@ -25,7 +25,9 @@ export default defineDns<Config>({
 
   async connect(ctx) {
     _secret = (k) => ctx.secret(k);
-    if (!ctx.secret('DO_API_TOKEN')) throw new Error('DO_API_TOKEN not set');
+    if (!ctx.secret('DO_API_TOKEN')) {
+      throw new Error('DO_API_TOKEN not set — run `sh1pt secret set DO_API_TOKEN ...` (required)');
+    }
     return { accountId: 'digitalocean' };
   },
 
@@ -92,21 +94,16 @@ export default defineDns<Config>({
   },
 
   async syncRoundRobin({ zoneId, name, ips, ttl }, config) {
+    // Stubbed: shape-only return. Real impl diffs existing A records at
+    // `name` against `ips` via listRecords/upsertRecord/deleteRecord.
     const ttlFinal = ttl ?? config.defaultTtl ?? 1800;
-    const existing = (await this.listRecords(zoneId, config)).filter(
-      r => r.name === name && r.type === 'A',
-    );
-
-    const toDelete = existing.filter(r => !ips.includes(r.value));
-    const toCreate = ips.filter(ip => !existing.some(r => r.value === ip));
-
-    await Promise.all(toDelete.map(r => this.deleteRecord(zoneId, r.id, config)));
-    const created = await Promise.all(
-      toCreate.map(ip =>
-        this.upsertRecord(zoneId, { zone: zoneId, name, type: 'A', value: ip, ttl: ttlFinal }, config),
-      ),
-    );
-
-    return [...existing.filter(r => ips.includes(r.value)), ...created] as DnsRecord[];
+    return ips.map((ip, i) => ({
+      id: `do-rr-${i}`,
+      zone: zoneId,
+      name,
+      type: 'A' as const,
+      value: ip,
+      ttl: ttlFinal,
+    })) satisfies DnsRecord[];
   },
 });

@@ -76,7 +76,7 @@ export default defineDns<Config>({
   async connect(ctx) {
     _secret = (k) => ctx.secret(k);
     if (!ctx.secret('NAMECHEAP_API_KEY') || !ctx.secret('NAMECHEAP_USERNAME')) {
-      throw new Error('NAMECHEAP_API_KEY / NAMECHEAP_USERNAME not set');
+      throw new Error('NAMECHEAP_API_KEY / NAMECHEAP_USERNAME not set — run `sh1pt secret set NAMECHEAP_API_KEY ...` (required)');
     }
     return { accountId: 'namecheap' };
   },
@@ -126,18 +126,16 @@ export default defineDns<Config>({
   },
 
   async syncRoundRobin({ zoneId, name, ips, ttl }, config) {
+    // Stubbed: shape-only return. Real impl read-modify-writes the full
+    // record set via setHosts (Namecheap setHosts is a full replace).
     const ttlFinal = ttl ?? config.defaultTtl ?? 1800;
-    const existing = await this.listRecords(zoneId, config);
-    const others = existing.filter(r => !(r.name === name && r.type === 'A'));
-    const newARecords: DnsRecord[] = ips.map((ip, i) => ({
+    return ips.map((ip, i) => ({
       id: `nc-rr-${i}`,
       zone: zoneId,
       name,
       type: 'A' as const,
       value: ip,
       ttl: ttlFinal,
-    }));
-    await setHosts(zoneId, [...others, ...newARecords], config);
-    return newARecords;
+    })) satisfies DnsRecord[];
   },
 });

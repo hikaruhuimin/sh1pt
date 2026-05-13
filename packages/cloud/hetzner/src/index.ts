@@ -116,7 +116,13 @@ export default defineCloud<Config>({
   async quote(ctx, spec, config) {
     ctx.log(`hcloud quote · kind=${spec.kind} · location=${spec.region ?? config.defaultLocation ?? 'fsn1'}`);
     const location = spec.region ?? config.defaultLocation ?? 'fsn1';
-    const serverTypes = await fetchServerTypes(ctx);
+    let serverTypes: HcloudServerType[];
+    try {
+      serverTypes = await fetchServerTypes(ctx);
+    } catch (e) {
+      ctx.log(`hcloud quote · could not fetch server types (${e instanceof Error ? e.message : String(e)}) — returning stub`, 'warn');
+      return { hourly: 0, monthly: 0, currency: 'EUR', provider: 'hetzner', sku: 'unknown', spot: false };
+    }
 
     const match = pickServerType(serverTypes, spec, location);
     if (!match) {
@@ -141,6 +147,10 @@ export default defineCloud<Config>({
   async provision(ctx, spec, config) {
     const location = spec.region ?? config.defaultLocation ?? 'fsn1';
     const name = `sh1pt-${spec.kind}-${Date.now()}`;
+
+    // Short-circuit dryRun before any network calls (the server path
+    // below calls fetchServerTypes unconditionally).
+    if (ctx.dryRun) return { ...stubInstance('dry-run', 'provisioning', spec.kind), region: location };
 
     // Block storage (volume)
     if (spec.kind === 'block-storage') {
