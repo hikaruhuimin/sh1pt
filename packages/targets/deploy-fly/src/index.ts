@@ -52,7 +52,7 @@ export default defineTarget<Config>({
     }
 
     // Execute flyctl deploy
-    const { stdout } = await exec('flyctl', args, {
+    const { stdout, stderr } = await exec('flyctl', args, {
       log: ctx.log,
       throwOnNonZero: true,
     });
