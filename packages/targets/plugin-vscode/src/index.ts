@@ -1,5 +1,6 @@
 import { defineTarget, setupGuide, exec } from '@profullstack/sh1pt-core';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 
 interface Config {
   publisher: string;       // e.g. "mycompany"
@@ -14,6 +15,31 @@ export default defineTarget<Config>({
   label: 'VS Code Marketplace',
 
   async build(ctx, config) {
+    const pkgDir = config.packageDir ? join(ctx.projectDir, config.packageDir) : ctx.projectDir;
+    const expectedVsix = `${ctx.outDir}/${config.extensionName}-${ctx.version}.vsix`;
+
+    // Short-circuit dry-run builds before any vsce/npm exec checks
+    if (ctx.dryRun) {
+      const args = ['--yes', 'vsce', 'package', '--out', ctx.outDir];
+      if (config.target) args.push('--target', config.target);
+      const plan = {
+        target: 'plugin-vscode',
+        version: ctx.version,
+        channel: ctx.channel,
+        packageDir: pkgDir,
+        expectedVsix,
+        publisher: config.publisher,
+        extensionName: config.extensionName,
+        targetPlatform: config.target ?? null,
+        vsceCommand: { cmd: 'npx', args },
+      };
+      const planPath = join(ctx.outDir, 'vscode-package-plan.json');
+      writeFileSync(planPath, JSON.stringify(plan, null, 2));
+      ctx.log(`dry-run: wrote ${planPath}`);
+      return { artifact: expectedVsix, meta: { plan } };
+    }
+
+    // Real build path — verify CLI availability then package
     ctx.log('vsce: verifying CLI availability');
 
     try {
@@ -25,19 +51,18 @@ export default defineTarget<Config>({
       });
     }
 
-    const pkgDir = config.packageDir ? join(ctx.projectDir, config.packageDir) : ctx.projectDir;
     ctx.log(`vsce: packaging ${config.publisher}.${config.extensionName} v${ctx.version}`);
 
     const args = ['--yes', 'vsce', 'package', '--out', ctx.outDir];
     if (config.target) args.push('--target', config.target);
 
-    const { stdout } = await exec('npx', args, {
+    await exec('npx', args, {
       cwd: pkgDir,
       log: ctx.log,
       throwOnNonZero: true,
     });
 
-    return { artifact: `${ctx.outDir}/${config.extensionName}-${ctx.version}.vsix` };
+    return { artifact: expectedVsix };
   },
 
   async ship(ctx, config) {
