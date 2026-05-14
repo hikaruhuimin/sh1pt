@@ -1,4 +1,6 @@
-import { defineTarget, manualSetup } from '@profullstack/sh1pt-core';
+import { defineTarget, manualSetup, exec } from '@profullstack/sh1pt-core';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 // Telegram bots. No "store" — a bot is just a token + webhook URL. This
 // adapter registers the webhook with Telegram, sets commands/description/
@@ -30,8 +32,44 @@ export default defineTarget<Config>({
   kind: 'chat',
   label: 'Telegram Bot',
   async build(ctx, config) {
-    ctx.log(`telegram · prepare bot manifest for @${config.botUsername}`);
-    return { artifact: `${ctx.outDir}/telegram-${config.botUsername}.json` };
+    const username = normalizeUsername(config.botUsername);
+    ctx.log(`telegram · prepare bot manifest for @${username}`);
+
+    // Dry-run short-circuits before any secret/network access
+    const manifestPath = join(ctx.outDir, `telegram-${username}.json`);
+    if (ctx.dryRun) return { artifact: manifestPath };
+
+    const tokenKey = config.tokenKey ?? 'TELEGRAM_BOT_TOKEN';
+    const token = ctx.secret(tokenKey);
+    if (!token) throw new Error(`${tokenKey} not in vault — run: sh1pt secret set ${tokenKey} <bot-token>`);
+
+    // Validate the bot token by calling getMe via curl using exec()
+    ctx.log(`telegram · validate token for @${username}`);
+    const result = await exec('curl', [
+      '-s', '-o', join(ctx.outDir, `telegram-${username}-getme.json`),
+      '-w', '%{http_code}',
+      `https://api.telegram.org/bot${token}/getMe`,
+    ], { log: ctx.log, cwd: ctx.projectDir, throwOnNonZero: false });
+
+    const httpCode = Number(result.stdout.trim());
+    if (httpCode !== 200) {
+      throw new Error(`Telegram getMe failed (HTTP ${httpCode}) — check your bot token`);
+    }
+
+    // Write the artifact manifest with bot metadata
+    const manifest = {
+      botUsername: username,
+      webhookUrl: config.webhookUrl,
+      commands: config.commands?.map(normalizeCommand) ?? [],
+      hasDescription: !!config.description,
+      hasShortDescription: !!config.shortDescription,
+      tokenKey,
+    };
+
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    ctx.log(`telegram · manifest written → ${manifestPath}`);
+
+    return { artifact: manifestPath };
   },
   async ship(ctx, config) {
     const username = normalizeUsername(config.botUsername);
